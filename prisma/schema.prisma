@@ -1,0 +1,37 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Story {
+  id                String          @id @default(cuid())
+  headline          String
+  summary           String
+  category          String?
+  sourceUrls        String[]
+  eventTime         DateTime?
+  discoveredAt      DateTime        @default(now())
+  dedupeKey         String          @unique
+  verificationTier  String?
+  fitScore          Float?
+  verifiedClaims    VerifiedClaim[]
+
+  @@map("stories")
+}
+
+model VerifiedClaim {
+  id        String   @id @default(cuid())
+  storyId   String
+  story     Story    @relation(fields: [storyId], references: [id])
+  claim     String
+  tier      String
+  evidence  String?
+  createdAt DateTime @default(now())
+
+  @@index([storyId])
+  @@map("verified_claims")
+}

@@ -18,7 +18,7 @@ function compile(source: string) {
 describe('shared-store types (real tsc)', () => {
   it('accepts valid shapes', () => {
     const r = compile(`
-      const s: T.Story = { id: '1', headline: 'h', discoveredAt: '2026-01-01', sourceUrls: [] };
+      const s: T.Story = { id: '1', headline: 'h', discoveredAt: '2026-01-01', sourceUrls: [], summary: 's', category: null, eventTime: null, dedupeKey: '2026-01-01:h', verificationTier: null, fitScore: null };
       const c: T.VerifiedClaim = { storyId: '1', claim: 'x', tier: 'CONFIRMED' };
       const r: T.RankedStory = { storyId: '1' };
       const b: T.StoryBrief = { storyId: '1' };

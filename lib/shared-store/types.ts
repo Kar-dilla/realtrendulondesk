@@ -10,6 +10,12 @@ export interface Story {
   headline: string;
   discoveredAt: string;
   sourceUrls: string[];
+  summary: string;
+  category: string | null;
+  eventTime: string | null;
+  dedupeKey: string;
+  verificationTier: VerificationTier | null;
+  fitScore: number | null;
 }
 
 // Module 03 (Verification)

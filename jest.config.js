@@ -5,5 +5,5 @@ module.exports = createJestConfig({
   testEnvironment: 'jest-environment-jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: { '^@/(.*)$': '<rootDir>/$1' },
-  testMatch: ['<rootDir>/__tests__/**/*.test.{ts,tsx}'],
+  testMatch: ['<rootDir>/**/__tests__/**/*.test.{ts,tsx}'],
 });
