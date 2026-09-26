@@ -88,7 +88,25 @@ export async function classifyStoryClaims(story: ClassifiableStory): Promise<Cla
   }
 
   if (response.status === 429) {
-    return { ok: false, error_type: 'rate_limit', message: 'Groq rate limit hit.' };
+    await new Promise((resolve) => setTimeout(resolve, 65000));
+    try {
+      response = await fetch(GROQ_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [{ role: 'user', content: buildPrompt(story) }],
+        }),
+      });
+    } catch (err: any) {
+      return { ok: false, error_type: 'unknown', message: err?.message ?? String(err) };
+    }
+    if (response.status === 429) {
+      return { ok: false, error_type: 'rate_limit', message: 'Groq rate limit hit twice; giving up.' };
+    }
   }
   if (!response.ok) {
     return { ok: false, error_type: 'unknown', message: `Groq request failed with status ${response.status}.` };

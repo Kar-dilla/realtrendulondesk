@@ -36,10 +36,20 @@ class DiscoveryError extends Error {
   }
 }
 
-async function searchTavily(): Promise<TavilyResult[]> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) throw new DiscoveryError('missing_api_key', 'TAVILY_API_KEY is not set.');
+const DISCOVERY_QUERIES = [
+  'major world conflict war breaking news today',
+  'natural disaster earthquake flood hurricane today',
+  'international politics policy government decision today',
+  'global economy markets major financial news today',
+  'humanitarian crisis human rights news today',
+  'underreported news Africa Latin America Southeast Asia today',
+];
 
+const RESULTS_PER_QUERY = 6;
+const MAX_TOTAL_RESULTS = 12;
+const MAX_CONTENT_CHARS = 400;
+
+async function runOneQuery(apiKey: string, query: string): Promise<TavilyResult[]> {
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
     headers: {
@@ -47,11 +57,11 @@ async function searchTavily(): Promise<TavilyResult[]> {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      query: 'breaking news today: politics, conflict, disaster, economy, world affairs',
+      query,
       topic: 'news',
       time_range: 'day',
-      search_depth: 'basic',
-      max_results: 15,
+      search_depth: 'advanced',
+      max_results: RESULTS_PER_QUERY,
       include_answer: false,
       include_raw_content: false,
     }),
@@ -65,15 +75,50 @@ async function searchTavily(): Promise<TavilyResult[]> {
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new DiscoveryError('error', `Tavily returned ${res.status}: ${text}`);
+    throw new DiscoveryError('error', `Tavily returned ${res.status} for query "${query}": ${text}`);
   }
 
   const data = await res.json();
-  const results: TavilyResult[] = Array.isArray(data?.results) ? data.results : [];
-  if (results.length === 0) {
-    throw new DiscoveryError('no_results', 'Tavily returned no results.');
+  return Array.isArray(data?.results) ? data.results : [];
+}
+
+async function searchTavily(): Promise<TavilyResult[]> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) throw new DiscoveryError('missing_api_key', 'TAVILY_API_KEY is not set.');
+
+  const settled = await Promise.allSettled(
+    DISCOVERY_QUERIES.map((q) => runOneQuery(apiKey, q))
+  );
+
+  const allResults: TavilyResult[] = [];
+  const errors: DiscoveryError[] = [];
+
+  for (const outcome of settled) {
+    if (outcome.status === 'fulfilled') {
+      allResults.push(...outcome.value);
+    } else if (outcome.reason instanceof DiscoveryError) {
+      errors.push(outcome.reason);
+    }
   }
-  return results;
+
+  if (allResults.length === 0 && errors.length > 0) {
+    throw errors[0];
+  }
+
+  const seen = new Set<string>();
+  const deduped: TavilyResult[] = [];
+  for (const r of allResults) {
+    if (!seen.has(r.url)) {
+      seen.add(r.url);
+      deduped.push(r);
+    }
+  }
+
+  if (deduped.length === 0) {
+    throw new DiscoveryError('no_results', 'Tavily returned no results across any category query.');
+  }
+
+  return deduped.slice(0, MAX_TOTAL_RESULTS);
 }
 
 async function structureWithGroq(results: TavilyResult[]): Promise<RawDiscoveredStory[]> {
@@ -87,7 +132,7 @@ Do NOT merge or deduplicate — one output object per input result, even if some
 Return ONLY a JSON array, no prose, no markdown fences, no explanation.
 
 Raw results:
-${JSON.stringify(results.map((r) => ({ title: r.title, url: r.url, content: r.content, published_date: r.published_date })), null, 2)}`;
+${JSON.stringify(results.map((r) => ({ title: r.title, url: r.url, content: r.content.slice(0, MAX_CONTENT_CHARS), published_date: r.published_date })), null, 2)}`;
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -99,6 +144,7 @@ ${JSON.stringify(results.map((r) => ({ title: r.title, url: r.url, content: r.co
       model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.2,
+      max_tokens: 8192,
     }),
   });
 
@@ -111,13 +157,28 @@ ${JSON.stringify(results.map((r) => ({ title: r.title, url: r.url, content: r.co
 
   const data = await res.json();
   const text: string = data?.choices?.[0]?.message?.content ?? '';
-  const cleaned = text.replace(/```json|```/g, '').trim();
+  const fenceStripped = text.replace(/```json|```/g, '').trim();
+  const arrayMatch = fenceStripped.match(/\[[\s\S]*\]/);
+  const cleaned = arrayMatch ? arrayMatch[0] : fenceStripped;
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    throw new DiscoveryError('malformed_output', 'Groq returned non-JSON output.');
+    // Response may have been truncated mid-object (hit the token ceiling).
+    // Recover by dropping the last, incomplete story rather than discarding
+    // the whole batch — we're not inventing data, just excluding what we
+    // genuinely don't have complete data for.
+    const lastCompleteEnd = cleaned.lastIndexOf('},');
+    if (lastCompleteEnd === -1) {
+      throw new DiscoveryError('malformed_output', 'Groq returned non-JSON output.');
+    }
+    const repaired = cleaned.slice(0, lastCompleteEnd + 1) + ']';
+    try {
+      parsed = JSON.parse(repaired);
+    } catch {
+      throw new DiscoveryError('malformed_output', 'Groq returned non-JSON output.');
+    }
   }
 
   if (!Array.isArray(parsed)) {

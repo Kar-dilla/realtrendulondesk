@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import Ranking from '@/app/ranking/page';
 import Selection from '@/app/selection/page';
 import Research from '@/app/research/page';
 import Scripts from '@/app/scripts/page';
@@ -7,7 +6,6 @@ import Visuals from '@/app/visuals/page';
 import Analytics from '@/app/analytics/page';
 
 const pages: [string, () => JSX.Element][] = [
-  ['ranking', Ranking],
   ['selection', Selection], ['research', Research], ['scripts', Scripts],
   ['visuals', Visuals], ['analytics', Analytics],
 ];

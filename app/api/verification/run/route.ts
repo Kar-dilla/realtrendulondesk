@@ -3,7 +3,29 @@ import { PrismaClient } from '@prisma/client';
 import { classifyStoryClaims, type Tier } from '@/lib/verification/classify';
 import { rollupTier } from '@/lib/verification/rollup';
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 1, backoffMs = 12000): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const isRateLimit = err instanceof Error && /429|rate.?limit/i.test(err.message);
+    if (isRateLimit && retries > 0) {
+      await sleep(backoffMs);
+      return withRetry(fn, retries - 1, backoffMs);
+    }
+    throw err;
+  }
+}
+
+
 const prisma = new PrismaClient();
+
+// Cap per-run batch size so a run finishes well inside the
+// Codespaces proxy's connection timeout, even with a rate-limit retry in the mix.
+const BATCH_LIMIT = 10;
 
 interface StoryResult {
   storyId: string;
@@ -29,7 +51,7 @@ export async function GET() {
 export async function POST() {
   let pendingStories;
   try {
-    pendingStories = await prisma.story.findMany({ where: { verificationTier: null } });
+    pendingStories = await prisma.story.findMany({ where: { verificationTier: null }, take: BATCH_LIMIT });
   } catch (err: any) {
     return NextResponse.json(
       { error: true, error_type: 'db_read_failed', message: err?.message ?? String(err) },
@@ -43,7 +65,8 @@ export async function POST() {
   const breakdown = { model_failure: 0, unclassifiable_content: 0, db_write_failed: 0 };
 
   for (const story of pendingStories) {
-    const classification = await classifyStoryClaims(story);
+    const classification = await withRetry(() => classifyStoryClaims(story));
+    await sleep(1500);
 
     // Model/API failure — could not get a usable response at all.
     if (!classification.ok) {

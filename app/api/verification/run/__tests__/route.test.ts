@@ -54,7 +54,7 @@ describe('POST /api/verification/run', () => {
   it('only queries stories where verificationTier is null', async () => {
     mockFindMany.mockResolvedValue([]);
     await POST();
-    expect(mockFindMany).toHaveBeenCalledWith({ where: { verificationTier: null } });
+    expect(mockFindMany).toHaveBeenCalledWith({ where: { verificationTier: null }, take: 10 });
   });
 
   it('leaves already-verified stories untouched — the where-clause is what enforces this', async () => {
@@ -67,7 +67,7 @@ describe('POST /api/verification/run', () => {
     const res = await POST();
     const body = await res.json();
 
-    expect(mockFindMany).toHaveBeenCalledWith({ where: { verificationTier: null } });
+    expect(mockFindMany).toHaveBeenCalledWith({ where: { verificationTier: null }, take: 10 });
     expect(body.processed).toBe(1);
   });
 

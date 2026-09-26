@@ -18,6 +18,8 @@ model Story {
   dedupeKey         String          @unique
   verificationTier  String?
   fitScore          Float?
+  editorialReason String?
+  fitRationale    String?
   verifiedClaims    VerifiedClaim[]
 
   @@map("stories")

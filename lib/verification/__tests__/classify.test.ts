@@ -22,6 +22,7 @@ describe('classifyStoryClaims', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    jest.useRealTimers();
     delete process.env.GROQ_API_KEY;
   });
 
@@ -114,9 +115,13 @@ describe('classifyStoryClaims', () => {
     expect(result).toEqual({ ok: false, error_type: 'missing_api_key', message: expect.any(String) });
   });
 
-  it('returns rate_limit on a 429 response', async () => {
+  it('returns rate_limit on a 429 response, after waiting out the retry window', async () => {
+    jest.useFakeTimers();
     mockFetchOnce({}, 429);
-    const result = await classifyStoryClaims(sampleStory);
+    const resultPromise = classifyStoryClaims(sampleStory);
+    await jest.advanceTimersByTimeAsync(65000);
+    const result = await resultPromise;
+    jest.useRealTimers();
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error_type).toBe('rate_limit');
   });
