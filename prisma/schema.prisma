@@ -23,6 +23,8 @@ model Story {
   verifiedClaims    VerifiedClaim[]
 
   @@map("stories")
+  selectedAt          DateTime?
+  selectedForPipeline Boolean  @default(false)
 }
 
 model VerifiedClaim {
