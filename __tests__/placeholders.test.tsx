@@ -1,11 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import Research from '@/app/research/page';
 import Scripts from '@/app/scripts/page';
 import Visuals from '@/app/visuals/page';
 import Analytics from '@/app/analytics/page';
 
 const pages: [string, () => JSX.Element][] = [
-  ['research', Research], ['scripts', Scripts],
+  ['scripts', Scripts],
   ['visuals', Visuals], ['analytics', Analytics],
 ];
 

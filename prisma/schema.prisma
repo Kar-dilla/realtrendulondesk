@@ -25,6 +25,8 @@ model Story {
   @@map("stories")
   selectedAt          DateTime?
   selectedForPipeline Boolean  @default(false)
+  researchBrief   Json?
+  researchedAt    DateTime?
 }
 
 model VerifiedClaim {
@@ -38,4 +40,13 @@ model VerifiedClaim {
 
   @@index([storyId])
   @@map("verified_claims")
+}
+
+model TopicNote {
+  id        String   @id @default(cuid())
+  topicKey  String   @unique
+  note      String
+  updatedAt DateTime @updatedAt
+
+  @@map("topic_notes")
 }
