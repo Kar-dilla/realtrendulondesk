@@ -30,7 +30,7 @@ Full list in `scripts/ownership.txt`. Summary:
 | P14 | Settings UI | `app/settings/`, `components/settings/`, `lib/settings/`, `app/api/settings/` |
 | P15 | AI / search / extraction chains | `lib/providers/`, `lib/research/`, `app/api/research/` |
 
-**Lead-only files** (ask, never edit): `package.json`, `prisma/`, `lib/shared-store/`, `lib/contracts/`, `lib/format.ts`, `components/ui/*` (except `Nav.tsx`), `scripts/`, `CONTRACT.md`, `.env*`, every existing `__tests__` folder, `lib/verification/`, `components/VerificationBadge.tsx`.
+**Lead-only files** (ask, never edit): `package.json`, `prisma/`, `lib/shared-store/`, `lib/contracts/`, `lib/format.ts`, `components/ui/*` (except `Nav.tsx`), `scripts/`, `CONTRACT.md`, `.env*`, `lib/story-card.ts`, `lib/verification/`, `components/VerificationBadge.tsx`.
 
 Need a shared file changed? Write the exact change you need in your `DONE.md` under "Requests to Lead".
 
@@ -63,6 +63,8 @@ import { timeAgo, formatScore } from '@/lib/format';
 
 - Colours come from CSS variables (`var(--accent)`, `var(--ok)` ...). **No new hex values.**
 - The story card is `StoryCard`. Dashboard, Today's News, Top Stories and Selection all use it. Do not fork it.
+- Never edit a test just to make it pass. A test inside YOUR folders may change only when you intentionally change that behaviour. List every changed test and why under "Tests changed" in `DONE.md`. Tests outside your folders are off limits.
+- To turn a stored story into a card, use `toStoryCardData(row)` from `@/lib/story-card`. Never hand-build card data.
 - Every page needs three states: loading, empty (say what to do next), error (say what failed and how to retry).
 - Design for a 390px-wide phone first. The Lead tests on a phone.
 - No new npm packages without Lead approval.

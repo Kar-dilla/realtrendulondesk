@@ -29,6 +29,12 @@ model Story {
   researchError        String?
   searchResults        Json?
   researchInstructions String?
+  firstReportedAt      DateTime?
+  lastUpdatedAt        DateTime?
+  globalImpact         Float?
+  humanImpact          Float?
+  freshnessScore       Float?
+  sourceConfidence     String?
 
   @@map("stories")
 }
@@ -53,4 +59,16 @@ model TopicNote {
   updatedAt DateTime @updatedAt
 
   @@map("topic_notes")
+}
+
+model ScanRun {
+  id              String    @id @default(cuid())
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  articlesFetched Int       @default(0)
+  newStories      Int       @default(0)
+  updatedStories  Int       @default(0)
+  sources         Json?
+
+  @@map("scan_runs")
 }

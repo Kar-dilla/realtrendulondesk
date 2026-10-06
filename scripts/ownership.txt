@@ -1,18 +1,18 @@
 # Package ownership. One line per package: <id> <path prefix> <path prefix> ...
 # A prefix ending in "/" owns the whole folder. Anything else is an exact file.
 # Maintained by the Lead only.
-p01 components/shell/ components/ui/Nav.tsx app/layout.tsx app/globals.css app/ui.css app/login/ app/auth/ lib/supabase/ lib/modules.ts proxy.ts
-p02 app/dashboard/ components/dashboard/ app/page.tsx
-p03 app/discovery/ components/discovery/
+p01 components/shell/ components/ui/Nav.tsx app/layout.tsx app/globals.css app/ui.css app/login/ app/auth/ lib/supabase/ lib/modules.ts proxy.ts __tests__/nav.test.tsx __tests__/placeholders.test.tsx
+p02 app/dashboard/ components/dashboard/ app/page.tsx __tests__/dashboard.test.tsx
+p03 app/discovery/ components/discovery/ __tests__/discovery-page.test.tsx
 p04 app/verification/ components/verification/
 p05 app/ranking/ components/ranking/
-p06 app/selection/ components/selection/
+p06 app/selection/ components/selection/ __tests__/api/selection.test.ts __tests__/api/selection-select.test.ts
 p07 app/research/ components/research/
-p08 lib/discovery/ app/api/discovery/
+p08 lib/discovery/ app/api/discovery/ __tests__/discovery.test.ts
 p09 app/scripts/ components/scripts/ lib/scripts/ app/api/scripts/
 p10 app/visuals/ components/media/ lib/media/ app/api/media/
 p11 app/published/ components/publishing/ lib/publishing/ app/api/publishing/
 p12 app/analytics/ components/performance/ lib/performance/ app/api/performance/
-p13 app/standards/ components/standards/ lib/standards/ app/api/standards/ app/api/ranking/ lib/ranking-prompt.ts
+p13 app/standards/ components/standards/ lib/standards/ app/api/standards/ app/api/ranking/ lib/ranking-prompt.ts __tests__/lib/ranking-prompt.test.ts __tests__/api/ranking/
 p14 app/settings/ components/settings/ lib/settings/ app/api/settings/
 p15 lib/providers/ lib/research/ app/api/research/

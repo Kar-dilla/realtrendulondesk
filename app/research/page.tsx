@@ -58,7 +58,7 @@ interface TavilySearchResult {
   published_date: string | null;
 }
 
-type ResearchStatus = 'idle' | 'searching' | 'searched' | 'synthesizing' | 'complete' | 'failed' | null;
+type ResearchStatus = 'idle' | 'searching' | 'searched' | 'synthesizing' | 'synthesized' | 'complete' | 'failed' | null;
 
 interface SelectedStory {
   id: string;
