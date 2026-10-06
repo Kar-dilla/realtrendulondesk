@@ -1,0 +1,174 @@
+/* Trendulon UI kit (Wave 0). Owned by P01 after hand-off; until then the Lead.
+   Adds NEW tokens and `tl-` classes only. It never redefines the existing
+   --bg / --fg / --muted / --border / --accent from globals.css. */
+
+:root {
+  --surface: #101010;
+  --surface-2: #161616;
+  --border-strong: #3a3a3a;
+  --on-accent: #0a0a0a;
+  --accent-soft: rgba(254, 109, 5, 0.12);
+  --accent-line: rgba(254, 109, 5, 0.45);
+  --accent-glow: rgba(254, 109, 5, 0.32);
+
+  /* Evidence + status colours (match the Hercules prototype) */
+  --ok: #3ddc84;
+  --info: #2fc4d8;
+  --warn: #f5c518;
+  --danger: #ff4d4d;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --sidebar-w: 248px;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ---------- Focus + motion floor ---------- */
+.tl-btn:focus-visible,
+.tl-card--interactive:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-dot--live { animation: none; }
+  .tl-btn, .tl-card { transition: none; }
+}
+
+/* ---------- Signature: the orbit glow (one bold move, use sparingly) ---------- */
+.tl-orbit-glow {
+  background:
+    radial-gradient(60% 50% at 50% 0%, var(--accent-soft), transparent 70%),
+    var(--bg);
+}
+
+/* ---------- Status dot (pipeline cards, live indicators) ---------- */
+.tl-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.tl-dot--on { background: var(--ok); }
+.tl-dot--live { background: var(--accent); box-shadow: 0 0 0 0 var(--accent-glow); animation: tl-pulse 2s ease-out infinite; }
+@keyframes tl-pulse {
+  70% { box-shadow: 0 0 0 8px rgba(254, 109, 5, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(254, 109, 5, 0); }
+}
+
+/* ---------- Card ---------- */
+.tl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tl-card--flush { padding: 0; }
+.tl-card--interactive:hover {
+  border-color: var(--accent-line);
+  box-shadow: 0 10px 36px -16px var(--accent-glow);
+}
+
+/* ---------- Button ---------- */
+.tl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.tl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.tl-btn--sm { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.tl-btn--primary { background: var(--accent); color: var(--on-accent); }
+.tl-btn--primary:hover:not(:disabled) { background: #ff8226; }
+.tl-btn--secondary { background: var(--surface-2); color: var(--fg); border-color: var(--border); }
+.tl-btn--secondary:hover:not(:disabled) { border-color: var(--border-strong); }
+.tl-btn--ghost { background: transparent; color: var(--muted); }
+.tl-btn--ghost:hover:not(:disabled) { color: var(--fg); background: var(--surface-2); }
+.tl-btn__icon { display: inline-flex; }
+
+/* ---------- Chip + PriorityBadge ---------- */
+.tl-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tl-priority {
+  --pc: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--pc);
+  background: color-mix(in srgb, var(--pc) 12%, transparent);
+  color: var(--pc);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tl-priority::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--pc); }
+.tl-priority[data-level='medium'] { --pc: var(--warn); }
+.tl-priority[data-level='low'] { --pc: var(--muted); }
+
+/* ---------- ProgressBar ---------- */
+.tl-progress__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; color: var(--muted); }
+.tl-progress__value { font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--fg); }
+.tl-progress__track { height: 4px; margin-top: 6px; border-radius: var(--radius-pill); background: var(--border); overflow: hidden; }
+.tl-progress__fill { height: 100%; border-radius: inherit; background: var(--accent); }
+
+/* ---------- TierBadge (evidence labels) ---------- */
+.tl-tier {
+  --tier: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--tier) 12%, transparent);
+  color: var(--tier);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tl-tier::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--tier); }
+.tl-tier[data-tier='CONFIRMED'] { --tier: var(--ok); }
+.tl-tier[data-tier='REPORTED'] { --tier: var(--info); }
+.tl-tier[data-tier='UNVERIFIED'] { --tier: var(--warn); }
+.tl-tier[data-tier='DISPUTED'] { --tier: var(--accent); }
+.tl-tier[data-tier='FALSE'] { --tier: var(--danger); }
+
+/* ---------- StoryCard ---------- */
+.tl-story { display: flex; flex-direction: column; gap: 16px; }
+.tl-story__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tl-story__score { margin-left: auto; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.tl-story__headline { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 700; }
+.tl-story__metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+.tl-confidence { font-size: 13px; color: var(--muted); }
+.tl-confidence strong { display: block; margin-top: 2px; font-size: 18px; letter-spacing: 0.02em; }
+.tl-confidence[data-level='HIGH'] strong { color: var(--ok); }
+.tl-confidence[data-level='MEDIUM'] strong { color: var(--warn); }
+.tl-confidence[data-level='LOW'] strong { color: var(--danger); }
+.tl-story__meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); }
+.tl-story__sources { flex-basis: 100%; }
+.tl-story__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.tl-story__actions .tl-btn { flex: 1 1 140px; padding: 0 12px; font-size: 14px; }

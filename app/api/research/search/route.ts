@@ -90,7 +90,7 @@ export async function POST(req: Request) {
   try {
     await prisma.story.update({
       where: { id: storyId },
-      data: { searchResults: result.results, researchStatus: 'searched', researchError: null },
+      data: { searchResults: JSON.parse(JSON.stringify(result.results)), researchStatus: 'searched', researchError: null },
     });
   } catch (err: any) {
     return NextResponse.json(

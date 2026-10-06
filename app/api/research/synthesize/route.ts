@@ -132,7 +132,7 @@ export async function POST(req: Request) {
     // judgment call, not something the brief stated outright.
     await prisma.story.update({
       where: { id: storyId },
-      data: { researchBrief: result.brief, researchedAt, researchStatus: 'synthesized', researchError: null },
+      data: { researchBrief: JSON.parse(JSON.stringify(result.brief)), researchedAt, researchStatus: 'searched', researchError: null },
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -145,6 +145,6 @@ export async function POST(req: Request) {
     error: false,
     brief: result.brief,
     researchedAt: researchedAt.toISOString(),
-    researchStatus: 'synthesized',
+    researchStatus: 'searched',
   });
 }

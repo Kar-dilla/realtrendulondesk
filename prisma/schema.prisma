@@ -8,25 +8,29 @@ generator client {
 }
 
 model Story {
-  id                String          @id @default(cuid())
-  headline          String
-  summary           String
-  category          String?
-  sourceUrls        String[]
-  eventTime         DateTime?
-  discoveredAt      DateTime        @default(now())
-  dedupeKey         String          @unique
-  verificationTier  String?
-  fitScore          Float?
-  editorialReason String?
-  fitRationale    String?
-  verifiedClaims    VerifiedClaim[]
+  id                   String          @id @default(cuid())
+  headline             String
+  summary              String
+  category             String?
+  sourceUrls           String[]
+  eventTime            DateTime?
+  discoveredAt         DateTime        @default(now())
+  dedupeKey            String          @unique
+  verificationTier     String?
+  fitScore             Float?
+  editorialReason      String?
+  fitRationale         String?
+  verifiedClaims       VerifiedClaim[]
+  selectedAt           DateTime?
+  selectedForPipeline  Boolean         @default(false)
+  researchBrief        Json?
+  researchedAt         DateTime?
+  researchStatus       String?
+  researchError        String?
+  searchResults        Json?
+  researchInstructions String?
 
   @@map("stories")
-  selectedAt          DateTime?
-  selectedForPipeline Boolean  @default(false)
-  researchBrief   Json?
-  researchedAt    DateTime?
 }
 
 model VerifiedClaim {
