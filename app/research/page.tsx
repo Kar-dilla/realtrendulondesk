@@ -1,11 +1,10 @@
 // app/research/page.tsx
 //
-// Module 06 (Story Research). Shows the currently selected story, a manual
-// running-topic note (Constitution §6c), and a "Generate Research Brief"
-// button that renders the three-way Confirmed / Developing / Not Confirmed
-// split — the actual point of this module, so it's never collapsed into a
-// single blob of text. If no story is selected, the rest of the page's
-// controls don't render.
+// Module 06 v2 — Deep Research Engine. Two real, honestly-reported stages:
+// Find Sources (Stage 1 / Research Engine) then Build Research Brief
+// (Stage 2 / Research Analyst). The progress indicator reflects the story's
+// actual persisted researchStatus, not a canned animation — a stage is only
+// ever shown as done because the corresponding request actually completed.
 
 'use client';
 
@@ -19,17 +18,57 @@ interface VerifiedClaimRow {
   evidence: string | null;
 }
 
-interface ResearchBrief {
-  confirmed: string[];
-  developing: string[];
-  not_confirmed: string[];
+interface SourcedItem {
+  text: string;
+  source_url: string | null;
+  source_name: string | null;
+  published_date: string | null;
 }
+
+interface TimelineEntry {
+  date: string | null;
+  event: string;
+  source_url: string | null;
+}
+
+interface DisputedClaim {
+  claim: string;
+  claimed_by: string | null;
+  disputed_by: string | null;
+  evidence: string;
+  unresolved: string;
+}
+
+interface ResearchBrief {
+  overview: string;
+  confirmed: SourcedItem[];
+  developing: SourcedItem[];
+  not_confirmed: SourcedItem[];
+  timeline: TimelineEntry[];
+  disputed_claims: DisputedClaim[];
+  background: string;
+  why_it_matters: string;
+  open_questions: string[];
+}
+
+interface TavilySearchResult {
+  title: string;
+  url: string;
+  content: string;
+  published_date: string | null;
+}
+
+type ResearchStatus = 'idle' | 'searching' | 'searched' | 'synthesizing' | 'complete' | 'failed' | null;
 
 interface SelectedStory {
   id: string;
   headline: string;
   summary: string;
   verifiedClaims: VerifiedClaimRow[];
+  researchStatus: ResearchStatus;
+  researchError: string | null;
+  researchInstructions: string | null;
+  searchResults: TavilySearchResult[] | null;
   researchBrief: ResearchBrief | null;
   researchedAt: string | null;
 }
@@ -49,10 +88,13 @@ const COLORS = {
   card: '#161616',
 };
 
-const SECTION_STYLE: Record<keyof ResearchBrief, { label: string; color: string }> = {
-  confirmed: { label: 'Confirmed', color: '#22C55E' },
-  developing: { label: 'Developing', color: '#3B82F6' },
-  not_confirmed: { label: 'Not Confirmed', color: '#F59E0B' },
+const STATUS_LABEL: Record<string, string> = {
+  idle: 'Not started',
+  searching: 'Finding sources…',
+  searched: 'Sources found — ready to build brief',
+  synthesizing: 'Building brief…',
+  complete: 'Finalized — sent to Script Generation',
+  failed: 'Failed',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -67,18 +109,98 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'inherit',
 };
 
+const cardStyle: React.CSSProperties = {
+  padding: 16,
+  background: COLORS.card,
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 8,
+  marginBottom: 20,
+};
+
+const buttonStyle = (disabled: boolean, primary = false): React.CSSProperties => ({
+  background: primary ? COLORS.accent : COLORS.card,
+  color: primary ? '#0D0D0D' : COLORS.text,
+  border: primary ? 'none' : `1px solid ${COLORS.border}`,
+  borderRadius: 6,
+  padding: '9px 16px',
+  fontSize: 13,
+  fontWeight: primary ? 600 : 500,
+  cursor: disabled ? 'default' : 'pointer',
+  opacity: disabled ? 0.5 : 1,
+  marginRight: 8,
+});
+
+function briefToPlainText(brief: ResearchBrief): string {
+  const lines: string[] = [];
+  const src = (u: string | null) => (u ? ` (${u})` : ' (could not be independently verified)');
+
+  lines.push('OVERVIEW', brief.overview, '');
+  lines.push('CONFIRMED');
+  brief.confirmed.forEach((i) => lines.push(`- ${i.text}${src(i.source_url)}`));
+  lines.push('', 'DEVELOPING');
+  brief.developing.forEach((i) => lines.push(`- ${i.text}${src(i.source_url)}`));
+  lines.push('', 'NOT CONFIRMED');
+  brief.not_confirmed.forEach((i) => lines.push(`- ${i.text}${src(i.source_url)}`));
+  lines.push('', 'TIMELINE');
+  brief.timeline.forEach((t) => lines.push(`- ${t.date ?? 'date unknown'}: ${t.event}${t.source_url ? ` (${t.source_url})` : ''}`));
+  lines.push('', 'DISPUTED CLAIMS');
+  brief.disputed_claims.forEach((d) => {
+    lines.push(`- Claim: ${d.claim}`);
+    lines.push(`  Claimed by: ${d.claimed_by ?? 'unknown'}`);
+    lines.push(`  Disputed by: ${d.disputed_by ?? 'unknown'}`);
+    lines.push(`  Evidence: ${d.evidence}`);
+    lines.push(`  Unresolved: ${d.unresolved}`);
+  });
+  lines.push('', 'BACKGROUND', brief.background, '');
+  lines.push('WHY IT MATTERS', brief.why_it_matters, '');
+  lines.push('OPEN QUESTIONS');
+  brief.open_questions.forEach((q) => lines.push(`- ${q}`));
+
+  return lines.join('\n');
+}
+
+function SourcedItemRow({ item }: { item: SourcedItem }) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <span style={{ fontSize: 13, color: COLORS.text }}>{item.text}</span>{' '}
+      {item.source_url ? (
+        <a href={item.source_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: COLORS.accent }}>
+          {item.source_name ?? 'source'}
+        </a>
+      ) : (
+        <span style={{ fontSize: 12, color: COLORS.muted, fontStyle: 'italic' }}>could not be independently verified</span>
+      )}
+    </div>
+  );
+}
+
+function Section({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
+  return (
+    <details style={{ ...cardStyle, marginBottom: 12 }} open>
+      <summary style={{ fontSize: 14, color, cursor: 'pointer', fontWeight: 600 }}>{title}</summary>
+      <div style={{ marginTop: 12 }}>{children}</div>
+    </details>
+  );
+}
+
 export default function ResearchPage() {
-  // undefined = still loading, null = loaded and nothing is selected
   const [story, setStory] = useState<SelectedStory | null | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [instructions, setInstructions] = useState('');
   const [topicKey, setTopicKey] = useState('');
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
 
-  const [generating, setGenerating] = useState(false);
-  const [genError, setGenError] = useState<ApiError | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<ApiError | null>(null);
+
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [synthesizeError, setSynthesizeError] = useState<ApiError | null>(null);
+
+  const [finalizing, setFinalizing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchSelected();
@@ -88,7 +210,9 @@ export default function ResearchPage() {
     try {
       const res = await fetch('/api/research/selected');
       const data = await res.json();
-      setStory(data.story ?? null);
+      const s: SelectedStory | null = data.story ?? null;
+      setStory(s);
+      if (s?.researchInstructions) setInstructions(s.researchInstructions);
     } catch (err: any) {
       setLoadError(err?.message ?? 'Failed to load selected story.');
       setStory(null);
@@ -102,7 +226,7 @@ export default function ResearchPage() {
       const data = await res.json();
       if (!data.error && data.note) setNoteText(data.note.note);
     } catch {
-      // Best-effort pre-fill only; leave the textarea as the owner typed it.
+      // Best-effort pre-fill only.
     }
   }
 
@@ -123,40 +247,93 @@ export default function ResearchPage() {
     }
   }
 
-  async function generateBrief() {
+  async function runSearch() {
     if (!story) return;
-    setGenerating(true);
-    setGenError(null);
+    setSearching(true);
+    setSearchError(null);
     try {
-      const res = await fetch('/api/research/run', {
+      const res = await fetch('/api/research/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyId: story.id, topicKey: topicKey.trim() || undefined }),
+        body: JSON.stringify({ storyId: story.id }),
       });
       const data = await res.json();
       if (data.error) {
-        setGenError(data);
+        setSearchError(data);
+        setStory({ ...story, researchStatus: 'failed', researchError: data.message });
       } else {
-        setStory({ ...story, researchBrief: data.brief, researchedAt: data.researchedAt });
+        setStory({ ...story, searchResults: data.results, researchStatus: data.researchStatus });
       }
     } catch (err: any) {
-      setGenError({ error: true, error_type: 'network', message: err?.message ?? 'Request failed.' });
+      setSearchError({ error: true, error_type: 'network', message: err?.message ?? 'Request failed.' });
     } finally {
-      setGenerating(false);
+      setSearching(false);
+    }
+  }
+
+  async function runSynthesize() {
+    if (!story) return;
+    setSynthesizing(true);
+    setSynthesizeError(null);
+    try {
+      const res = await fetch('/api/research/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storyId: story.id,
+          instructions: instructions.trim() || undefined,
+          topicKey: topicKey.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setSynthesizeError(data);
+        setStory({ ...story, researchStatus: 'failed', researchError: data.message });
+      } else {
+        setStory({
+          ...story,
+          researchBrief: data.brief,
+          researchedAt: data.researchedAt,
+          researchStatus: data.researchStatus,
+        });
+      }
+    } catch (err: any) {
+      setSynthesizeError({ error: true, error_type: 'network', message: err?.message ?? 'Request failed.' });
+    } finally {
+      setSynthesizing(false);
+    }
+  }
+
+  async function finalize() {
+    if (!story) return;
+    setFinalizing(true);
+    try {
+      const res = await fetch('/api/research/finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storyId: story.id }),
+      });
+      const data = await res.json();
+      if (!data.error) setStory({ ...story, researchStatus: data.researchStatus });
+    } finally {
+      setFinalizing(false);
+    }
+  }
+
+  async function copyBrief() {
+    if (!story?.researchBrief) return;
+    try {
+      await navigator.clipboard.writeText(briefToPlainText(story.researchBrief));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API can be unavailable or denied — best-effort only.
     }
   }
 
   if (story === undefined) {
     return (
-      <main
-        style={{
-          background: COLORS.bg,
-          color: COLORS.text,
-          minHeight: '100vh',
-          padding: '32px 24px',
-          fontFamily: 'system-ui, sans-serif',
-        }}
-      >
+      <main style={{ background: COLORS.bg, color: COLORS.text, minHeight: '100vh', padding: '32px 24px', fontFamily: 'system-ui, sans-serif' }}>
         <p style={{ color: COLORS.muted }}>Loading selected story…</p>
       </main>
     );
@@ -164,55 +341,31 @@ export default function ResearchPage() {
 
   if (!story) {
     return (
-      <main
-        style={{
-          background: COLORS.bg,
-          color: COLORS.text,
-          minHeight: '100vh',
-          padding: '32px 24px',
-          fontFamily: 'system-ui, sans-serif',
-        }}
-      >
-        <div style={{ maxWidth: 840, margin: '0 auto' }}>
+      <main style={{ background: COLORS.bg, color: COLORS.text, minHeight: '100vh', padding: '32px 24px', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Story Research</h1>
           <p style={{ color: COLORS.muted, fontSize: 14 }}>
-            {loadError
-              ? `Could not load the selected story (${loadError}).`
-              : 'No story is currently selected. Pick one in Editorial Selection first.'}
+            {loadError ? `Could not load the selected story (${loadError}).` : 'No story is currently selected. Pick one in Editorial Selection first.'}
           </p>
         </div>
       </main>
     );
   }
 
+  const hasSources = !!story.searchResults && story.searchResults.length > 0;
+  const hasBrief = !!story.researchBrief;
+
   return (
-    <main
-      style={{
-        background: COLORS.bg,
-        color: COLORS.text,
-        minHeight: '100vh',
-        padding: '32px 24px',
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
-      <div style={{ maxWidth: 840, margin: '0 auto' }}>
+    <main style={{ background: COLORS.bg, color: COLORS.text, minHeight: '100vh', padding: '32px 24px', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <h1 style={{ fontSize: 22, marginBottom: 4 }}>Story Research</h1>
-        <p style={{ color: COLORS.muted, fontSize: 14, marginBottom: 24 }}>
-          Build the confirmed / developing / not-confirmed brief for the selected story.
+        <p style={{ color: COLORS.muted, fontSize: 14, marginBottom: 20 }}>
+          Real sources, cross-checked, organized into a full brief — not a reorganization of what was already known.
         </p>
 
-        <div
-          style={{
-            padding: 16,
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 8,
-            marginBottom: 24,
-          }}
-        >
+        <div style={cardStyle}>
           <h2 style={{ fontSize: 16, marginBottom: 8 }}>{story.headline}</h2>
           <p style={{ fontSize: 14, color: COLORS.text, marginBottom: 12 }}>{story.summary}</p>
-
           {story.verifiedClaims.length === 0 ? (
             <p style={{ fontSize: 13, color: COLORS.muted }}>No verified claims recorded for this story.</p>
           ) : (
@@ -227,110 +380,165 @@ export default function ResearchPage() {
           )}
         </div>
 
-        <div
-          style={{
-            padding: 16,
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 8,
-            marginBottom: 24,
-          }}
-        >
+        <div style={cardStyle}>
           <h3 style={{ fontSize: 14, marginBottom: 10 }}>Running Topic Note (optional)</h3>
-          <input
-            value={topicKey}
-            onChange={(e) => setTopicKey(e.target.value)}
-            onBlur={() => fetchNoteForKey(topicKey)}
-            placeholder="e.g. iran-hormuz"
-            style={inputStyle}
-          />
-          <textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Background context on this recurring topic…"
-            rows={4}
-            style={{ ...inputStyle, resize: 'vertical' }}
-          />
-          <button
-            onClick={saveNote}
-            disabled={noteSaving || !topicKey.trim()}
-            style={{
-              background: COLORS.card,
-              color: COLORS.text,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 6,
-              padding: '8px 14px',
-              fontSize: 13,
-              cursor: noteSaving ? 'default' : 'pointer',
-              opacity: noteSaving || !topicKey.trim() ? 0.6 : 1,
-            }}
-          >
+          <input value={topicKey} onChange={(e) => setTopicKey(e.target.value)} onBlur={() => fetchNoteForKey(topicKey)} placeholder="e.g. iran-hormuz" style={inputStyle} />
+          <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Background context on this recurring topic…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+          <button onClick={saveNote} disabled={noteSaving || !topicKey.trim()} style={buttonStyle(noteSaving || !topicKey.trim())}>
             {noteSaving ? 'Saving…' : noteSaved ? 'Saved' : 'Save Note'}
           </button>
         </div>
 
-        <div
-          style={{
-            padding: 16,
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 8,
-            marginBottom: 24,
-          }}
-        >
-          <button
-            onClick={generateBrief}
-            disabled={generating}
-            style={{
-              background: COLORS.accent,
-              color: '#0D0D0D',
-              border: 'none',
-              borderRadius: 6,
-              padding: '10px 18px',
-              fontWeight: 600,
-              cursor: generating ? 'default' : 'pointer',
-              opacity: generating ? 0.6 : 1,
-            }}
-          >
-            {generating ? 'Generating…' : 'Generate Research Brief'}
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 14, marginBottom: 10 }}>Investigation Instructions (optional)</h3>
+          <textarea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder="Anything specific you want investigated — e.g. 'focus on the economic angle'"
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical', marginBottom: 0 }}
+          />
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ marginBottom: 12, fontSize: 13, color: story.researchStatus === 'failed' ? '#EF4444' : COLORS.muted }}>
+            Status: {STATUS_LABEL[story.researchStatus ?? 'idle'] ?? story.researchStatus}
+            {story.researchStatus === 'failed' && story.researchError ? ` — ${story.researchError}` : ''}
+          </div>
+
+          <button onClick={runSearch} disabled={searching} style={buttonStyle(searching, !hasSources)}>
+            {searching ? 'Finding sources…' : hasSources ? 'Search Again' : 'Find Sources'}
+          </button>
+          <button onClick={runSynthesize} disabled={synthesizing || !hasSources} style={buttonStyle(synthesizing || !hasSources, hasSources && !hasBrief)}>
+            {synthesizing ? 'Building brief…' : hasBrief ? 'Regenerate Brief' : 'Build Research Brief'}
           </button>
 
-          {genError && (
+          {searchError && (
             <p style={{ marginTop: 12, color: '#EF4444', fontSize: 13 }}>
-              Failed ({genError.error_type}): {genError.message}
+              Find Sources failed ({searchError.error_type}): {searchError.message}
+            </p>
+          )}
+          {synthesizeError && (
+            <p style={{ marginTop: 12, color: '#EF4444', fontSize: 13 }}>
+              Build Research Brief failed ({synthesizeError.error_type}): {synthesizeError.message}
             </p>
           )}
         </div>
 
-        {story.researchBrief && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {(Object.keys(SECTION_STYLE) as (keyof ResearchBrief)[]).map((key) => (
-              <div
-                key={key}
-                style={{
-                  padding: 16,
-                  background: COLORS.card,
-                  border: `1px solid ${SECTION_STYLE[key].color}`,
-                  borderRadius: 8,
-                }}
-              >
-                <h3 style={{ fontSize: 14, color: SECTION_STYLE[key].color, marginBottom: 10 }}>
-                  {SECTION_STYLE[key].label}
-                </h3>
-                {story.researchBrief![key].length === 0 ? (
-                  <p style={{ fontSize: 13, color: COLORS.muted }}>Nothing in this bucket.</p>
-                ) : (
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {story.researchBrief![key].map((item, i) => (
-                      <li key={i} style={{ fontSize: 13, color: COLORS.text, marginBottom: 6 }}>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
+        {hasSources && (
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 14, marginBottom: 10 }}>Sources Found ({story.searchResults!.length})</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {story.searchResults!.map((r, i) => (
+                <div key={i} style={{ fontSize: 13 }}>
+                  <a href={r.url} target="_blank" rel="noreferrer" style={{ color: COLORS.accent }}>
+                    {r.title || r.url}
+                  </a>
+                  {r.published_date && <span style={{ color: COLORS.muted, fontSize: 12 }}> — {r.published_date}</span>}
+                </div>
+              ))}
+            </div>
           </div>
+        )}
+
+        {hasBrief && (
+          <>
+            <div style={{ display: 'flex', marginBottom: 16 }}>
+              <button onClick={copyBrief} style={buttonStyle(false)}>
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+              <button onClick={finalize} disabled={finalizing || story.researchStatus === 'complete'} style={buttonStyle(finalizing || story.researchStatus === 'complete', true)}>
+                {story.researchStatus === 'complete' ? 'Finalized' : finalizing ? 'Sending…' : 'Send to Script Generation'}
+              </button>
+            </div>
+
+            <Section title="Overview" color={COLORS.accent}>
+              <p style={{ fontSize: 13, color: COLORS.text, margin: 0 }}>{story.researchBrief!.overview}</p>
+            </Section>
+
+            <Section title="Confirmed" color="#22C55E">
+              {story.researchBrief!.confirmed.length === 0 ? (
+                <p style={{ fontSize: 13, color: COLORS.muted }}>Nothing in this bucket.</p>
+              ) : (
+                story.researchBrief!.confirmed.map((item, i) => <SourcedItemRow key={i} item={item} />)
+              )}
+            </Section>
+
+            <Section title="Developing" color="#3B82F6">
+              {story.researchBrief!.developing.length === 0 ? (
+                <p style={{ fontSize: 13, color: COLORS.muted }}>Nothing in this bucket.</p>
+              ) : (
+                story.researchBrief!.developing.map((item, i) => <SourcedItemRow key={i} item={item} />)
+              )}
+            </Section>
+
+            <Section title="Not Confirmed" color="#F59E0B">
+              {story.researchBrief!.not_confirmed.length === 0 ? (
+                <p style={{ fontSize: 13, color: COLORS.muted }}>Nothing in this bucket.</p>
+              ) : (
+                story.researchBrief!.not_confirmed.map((item, i) => <SourcedItemRow key={i} item={item} />)
+              )}
+            </Section>
+
+            <Section title="Timeline" color={COLORS.text}>
+              {story.researchBrief!.timeline.length === 0 ? (
+                <p style={{ fontSize: 13, color: COLORS.muted }}>No timeline established.</p>
+              ) : (
+                story.researchBrief!.timeline.map((t, i) => (
+                  <div key={i} style={{ marginBottom: 8, fontSize: 13 }}>
+                    <strong style={{ color: COLORS.muted }}>{t.date ?? 'date unknown'}:</strong> {t.event}{' '}
+                    {t.source_url ? (
+                      <a href={t.source_url} target="_blank" rel="noreferrer" style={{ color: COLORS.accent, fontSize: 12 }}>
+                        source
+                      </a>
+                    ) : (
+                      <span style={{ color: COLORS.muted, fontSize: 12, fontStyle: 'italic' }}>could not be independently verified</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </Section>
+
+            <Section title="Disputed Claims" color="#EF4444">
+              {story.researchBrief!.disputed_claims.length === 0 ? (
+                <p style={{ fontSize: 13, color: COLORS.muted }}>No disputed claims found.</p>
+              ) : (
+                story.researchBrief!.disputed_claims.map((d, i) => (
+                  <div key={i} style={{ marginBottom: 12, fontSize: 13 }}>
+                    <p style={{ margin: '0 0 4px 0' }}>
+                      <strong>{d.claim}</strong>
+                    </p>
+                    <p style={{ margin: '0 0 2px 0', color: COLORS.muted }}>Claimed by: {d.claimed_by ?? 'unknown'}</p>
+                    <p style={{ margin: '0 0 2px 0', color: COLORS.muted }}>Disputed by: {d.disputed_by ?? 'unknown'}</p>
+                    <p style={{ margin: '0 0 2px 0', color: COLORS.muted }}>Evidence: {d.evidence}</p>
+                    <p style={{ margin: 0, color: COLORS.muted }}>Unresolved: {d.unresolved}</p>
+                  </div>
+                ))
+              )}
+            </Section>
+
+            <Section title="Background" color={COLORS.text}>
+              <p style={{ fontSize: 13, color: COLORS.text, margin: 0 }}>{story.researchBrief!.background}</p>
+            </Section>
+
+            <Section title="Why It Matters" color={COLORS.text}>
+              <p style={{ fontSize: 13, color: COLORS.text, margin: 0 }}>{story.researchBrief!.why_it_matters}</p>
+            </Section>
+
+            <Section title="Open Questions" color={COLORS.text}>
+              {story.researchBrief!.open_questions.length === 0 ? (
+                <p style={{ fontSize: 13, color: COLORS.muted }}>None recorded.</p>
+              ) : (
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {story.researchBrief!.open_questions.map((q, i) => (
+                    <li key={i} style={{ fontSize: 13, color: COLORS.text, marginBottom: 4 }}>
+                      {q}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          </>
         )}
       </div>
     </main>
