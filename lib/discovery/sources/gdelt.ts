@@ -44,7 +44,7 @@ function seenToIso(raw: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export function parseArticles(json: unknown): RawArticle[] {
+export function parseArticles(json: unknown, topicId: string): RawArticle[] {
   const raw: unknown = isObj(json) ? json['articles'] : undefined;
   const list: unknown[] = Array.isArray(raw) ? raw : [];
   const out: RawArticle[] = [];
@@ -64,7 +64,7 @@ export function parseArticles(json: unknown): RawArticle[] {
       publishedAt,
       ...(language ? { language } : {}),
       ...(country ? { country } : {}),
-      provider: ID,
+      provider: `${ID}:${topicId}`,
     });
   }
   return out;
@@ -72,7 +72,7 @@ export function parseArticles(json: unknown): RawArticle[] {
 
 // GDELT answers some bad queries (and rate limits) with plain text, sometimes with HTTP 200.
 // An empty body or {} means "no articles", which is not an error.
-export function parseGdeltBody(body: string): ProviderResult<RawArticle[]> {
+export function parseGdeltBody(body: string, topicId: string): ProviderResult<RawArticle[]> {
   const trimmed = body.trim();
   if (!trimmed) return ok(ID, []);
   let json: unknown;
@@ -85,7 +85,7 @@ export function parseGdeltBody(body: string): ProviderResult<RawArticle[]> {
     return fail(ID, { kind: 'bad_response', message: `GDELT did not return JSON: ${collapse(trimmed).slice(0, 100)}` });
   }
   if (!isObj(json)) return fail(ID, { kind: 'bad_response', message: 'GDELT returned an unexpected JSON shape' });
-  return ok(ID, parseArticles(json));
+  return ok(ID, parseArticles(json, topicId));
 }
 
 const defaultSleep = (ms: number, signal?: AbortSignal): Promise<void> =>
@@ -133,7 +133,7 @@ async function queryTopic(topic: TopicConfig, sinceHours: number, cfg: Cfg, sign
       const retry = kind === 'rate_limit' ? { retryAfterSeconds: Math.ceil(cfg.backoffMs / 1000) } : {};
       return fail(ID, { kind, message: `HTTP ${res.status}`, status: res.status, ...retry });
     }
-    return parseGdeltBody(await res.text());
+    return parseGdeltBody(await res.text(), topic.id);
   } catch {
     return fail(ID, { kind: 'network', message: 'Could not reach GDELT (network error or timeout)' });
   } finally {

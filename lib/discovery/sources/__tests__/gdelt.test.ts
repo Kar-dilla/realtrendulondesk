@@ -52,7 +52,7 @@ describe('parsing', () => {
           publishedAt: '2025-10-06T10:15:00.000Z',
           language: 'English',
           country: 'United Kingdom',
-          provider: 'gdelt',
+          provider: 'gdelt:a',
         },
       ],
     });
@@ -77,6 +77,7 @@ describe('parsing', () => {
         art('https://e.com/bad', 'Bad date', '2025-10-06'),
         art('https://e.com/ok', 'Ok'),
       ),
+      'test',
     );
     expect(r.ok ? r.data.map((a) => a.url) : []).toEqual(['https://e.com/ok']);
   });
@@ -198,7 +199,7 @@ describe('live sample', () => {
   it('15. parses GDELT_SAMPLE_FILE when set', () => {
     const file = process.env.GDELT_SAMPLE_FILE;
     if (!file) return;
-    const r = parseGdeltBody(readFileSync(file, 'utf8'));
+    const r = parseGdeltBody(readFileSync(file, 'utf8'), 'test');
     const list = r.ok ? r.data : [];
     expect(r.ok).toBe(true);
     expect(list.length).toBeGreaterThanOrEqual(5);
@@ -213,7 +214,7 @@ describe('live sample', () => {
 describe('language and rate-limit text', () => {
   it('16. keeps only English articles', () => {
     const spanish = { ...art('https://e.com/es', 'Terremoto en la costa'), language: 'Spanish' };
-    const r = parseGdeltBody(body(spanish, art('https://e.com/en', 'Quake hits coast')));
+    const r = parseGdeltBody(body(spanish, art('https://e.com/en', 'Quake hits coast')), 'test');
     expect(r.ok ? r.data.map((a) => a.url) : []).toEqual(['https://e.com/en']);
   });
 
